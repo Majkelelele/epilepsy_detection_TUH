@@ -7,8 +7,9 @@ import matplotlib.pyplot as plt
 import pandas as pd
 from itertools import groupby
 from pyedflib import highlevel, EdfReader
-from utils import search_walk
 import re
+from scipy.signal import resample
+
 
 
 
@@ -105,16 +106,17 @@ def extract_seiz_intervals(labels_file_path):
 def save_slices(path_to_slices, slice_index, slice_data):
     os.makedirs(path_to_slices, exist_ok=True)
     file_name = f"slice_{slice_index}.npy"
-    np.save(os.path.join(path_to_slices, file_name), slice_data)
+    np.savez_compressed(os.path.join(path_to_slices, file_name), slice_data)
 
 def generate_slices(file_name, signals_np, slice_size = 6 * 250, step = 250):
     sample_rate = GLOBAL_DATA['sample_rate']
 
     labels_file_path = file_name + ".csv_bi"
     seizure_intervals, recording_duration = extract_seiz_intervals(labels_file_path)
-    print(f"duration in sec = {recording_duration}")
     slices_path = "sliced_data/train"
-    slice_index = 0
+    index_eps = 0
+    index_no_eps = 0
+
     record_len = signals_np.shape[1]
     
 
@@ -127,11 +129,14 @@ def generate_slices(file_name, signals_np, slice_size = 6 * 250, step = 250):
         for seizure_start, seizure_end in seizure_intervals:
             if start_idx < seizure_end * sample_rate and end_idx > seizure_start * sample_rate:
                 is_seizure = True
-                break
 
         label = "eps" if is_seizure else "no_eps"
-        save_slices(slices_path + "/" + label, slice_index, current_slice)
-        slice_index += 1
+        if label == "eps":
+            index_eps += 1
+            save_slices(slices_path + "/" + label, index_eps, current_slice)
+        if label == "no_eps":
+            index_no_eps += 1
+            save_slices(slices_path + "/" + label, index_no_eps, current_slice)  
 
 def generate_training_data_slices(file):
     sample_rate = GLOBAL_DATA['sample_rate']
@@ -145,7 +150,11 @@ def generate_training_data_slices(file):
     signal_sample_rate = int(max([i['sample_frequency'] for i in signal_headers]))
     assert sample_rate <= signal_sample_rate, "sample_rate is greater than signal_sample_rate"
     assert all(elem in y_labels for elem in GLOBAL_DATA['labels']), "not all required labels in EEG signal"
-    signals_np = np.zeros((electrodes_num, record_len))
+    target_freq = 100
+    
+    resampled_len = int(record_len * target_freq / sampling_rate)
+
+    signals_np = np.zeros((electrodes_num, resampled_len))
     signal_label_list = []
     next_place = 0
     for idx, signal in enumerate(signals):
@@ -153,12 +162,15 @@ def generate_training_data_slices(file):
 
         if label in GLOBAL_DATA['labels']:
             assert len(signal) == record_len, "different recording lengths in electrodes"
-            signals_np[next_place, :] = signal
+            signals_np[next_place, :] = resample(signal, resampled_len)
             signal_label_list.append(label)
             next_place += 1
 
     assert len(signal_label_list) == len(GLOBAL_DATA['labels']), "not all required electrodes in data"
     slice_size = GLOBAL_DATA["slice_size_scs"] * signal_sample_rate
+    # just to reduce memory usage
+    signals_np = signals_np.astype(np.float32) 
+    
     generate_slices(file_name, signals_np, slice_size)
    
 
