@@ -1,7 +1,8 @@
 venv*
-00_epilepsy*
-01_no_epilepsy
-00_subject_ids*
-01_subject_ids*
+DOCS*
+edf*
+github_solve*
 AAREADME*
+_*
 TEST
+sliced_data*
