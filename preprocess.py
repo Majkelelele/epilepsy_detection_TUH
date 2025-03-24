@@ -12,11 +12,6 @@ from scipy.signal import resample
 import os
 
 
-sampling_rate = 250
-seiz_path = "edf/train/aaaaaogk/s001_2012/01_tcp_ar/aaaaaogk_s001_t002.edf"
-
-no_seiz_path = "edf/train/aaaaaogk/s001_2012/01_tcp_ar/aaaaaogk_s001_t000.edf"
-no_seiz_2 = "edf/train/aaaaanzr/s003_2012/01_tcp_ar/aaaaanzr_s003_t000.edf"
 GLOBAL_DATA = {}
 
 slices_path = "sliced_data/train"
@@ -167,9 +162,11 @@ def generate_training_data_slices(file, index_no_eps=0, index_eps=0):
     signal_sample_rate = int(max([i['sample_frequency'] for i in signal_headers]))
     assert sample_rate <= signal_sample_rate, "sample_rate is greater than signal_sample_rate"
     # assert all(elem in y_labels for elem in GLOBAL_DATA['labels']), "not all required labels in EEG signal"
+    if not all(elem in y_labels for elem in GLOBAL_DATA['labels']):
+        return index_eps, index_no_eps
     target_freq = 100
     
-    resampled_len = int(record_len * target_freq / sampling_rate)
+    resampled_len = int(record_len * target_freq / signal_sample_rate)
 
     signals_np = np.zeros((electrodes_num, resampled_len))
     signal_label_list = []
@@ -184,6 +181,10 @@ def generate_training_data_slices(file, index_no_eps=0, index_eps=0):
             next_place += 1
 
     # assert len(signal_label_list) == len(GLOBAL_DATA['labels']), "not all required electrodes in data"
+    if len(signal_label_list) != len(GLOBAL_DATA['labels']):
+        print("not enough labels")
+        return index_eps, index_no_eps
+    
     slice_size = GLOBAL_DATA["slice_size_scs"] * signal_sample_rate
     # just to reduce memory usage
     signals_np = signals_np.astype(np.float32) 
@@ -199,10 +200,12 @@ GLOBAL_DATA['sample_rate'] = 250
 GLOBAL_DATA['labels'] = ['FP1', 'FP2', 'F3', 'F4', 'F7', 'F8', 'C3', 'C4', 'CZ', 'T3', 'T4', 'P3', 'P4', 'O1', 'O2', 'T5', 'T6', 'PZ', 'FZ']
 GLOBAL_DATA['slice_size_scs'] = 6
 
-
-paths = get_paths("edf/train")
-index_eps = 0
-index_no_eps = 0
-next_place = 0
-for i in range(10):
-    index_eps, index_no_eps = generate_training_data_slices(paths[i], index_no_eps, index_eps)
+def generate_entire_train_set():
+    
+    paths = get_paths("edf/train")
+    index_eps = 0
+    index_no_eps = 0
+    for p in paths:
+        index_eps, index_no_eps = generate_training_data_slices(p, index_no_eps, index_eps)
+        
+generate_entire_train_set()

@@ -1,0 +1,1 @@
+this is project attempting to solve seizure detection task on EEG data
