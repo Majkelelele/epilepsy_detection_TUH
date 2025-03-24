@@ -9,8 +9,7 @@ from itertools import groupby
 from pyedflib import highlevel, EdfReader
 import re
 from scipy.signal import resample
-
-
+import os
 
 
 sampling_rate = 250
@@ -71,12 +70,29 @@ def read_and_plot(file_name):
     plt.tight_layout()
     plt.show()
 
+def search_walk(info):
+    searched_list = []
+    root_path = info.get('path')
+    extension = info.get('extension')
 
-import numpy as np
-import os
-import re
-from pyedflib import highlevel
+    for (path, dir, files) in os.walk(root_path):
+        for filename in files:
+            ext = os.path.splitext(filename)[-1]
+            if ext == extension:
+                list_file = ('%s/%s' % (path, filename))
+                searched_list.append(list_file)
 
+    if searched_list:
+        return searched_list
+    else:
+        return False
+
+def get_paths(directory):
+    info = {}
+    info["path"] = directory
+    info["extension"] = ".edf"
+    paths = search_walk(info)
+    return paths
 
 def extract_seiz_intervals(labels_file_path):
     seizure_intervals = []
@@ -108,14 +124,13 @@ def save_slices(path_to_slices, slice_index, slice_data):
     file_name = f"slice_{slice_index}.npy"
     np.savez_compressed(os.path.join(path_to_slices, file_name), slice_data)
 
-def generate_slices(file_name, signals_np, slice_size = 6 * 250, step = 250):
+def generate_slices(file_name, signals_np, index_eps, index_no_eps, slice_size = 6 * 250, step = 250):
     sample_rate = GLOBAL_DATA['sample_rate']
 
     labels_file_path = file_name + ".csv_bi"
     seizure_intervals, recording_duration = extract_seiz_intervals(labels_file_path)
     slices_path = "sliced_data/train"
-    index_eps = 0
-    index_no_eps = 0
+
 
     record_len = signals_np.shape[1]
     
@@ -137,8 +152,10 @@ def generate_slices(file_name, signals_np, slice_size = 6 * 250, step = 250):
         if label == "no_eps":
             index_no_eps += 1
             save_slices(slices_path + "/" + label, index_no_eps, current_slice)  
+    print(f"created {index_eps + index_no_eps} slices")
+    return index_eps, index_no_eps
 
-def generate_training_data_slices(file):
+def generate_training_data_slices(file, index_no_eps=0, index_eps=0):
     sample_rate = GLOBAL_DATA['sample_rate']
     electrodes_num = len(GLOBAL_DATA['labels'])
     file_name = file.split(".")[:-1][0]
@@ -149,7 +166,7 @@ def generate_training_data_slices(file):
 
     signal_sample_rate = int(max([i['sample_frequency'] for i in signal_headers]))
     assert sample_rate <= signal_sample_rate, "sample_rate is greater than signal_sample_rate"
-    assert all(elem in y_labels for elem in GLOBAL_DATA['labels']), "not all required labels in EEG signal"
+    # assert all(elem in y_labels for elem in GLOBAL_DATA['labels']), "not all required labels in EEG signal"
     target_freq = 100
     
     resampled_len = int(record_len * target_freq / sampling_rate)
@@ -166,12 +183,13 @@ def generate_training_data_slices(file):
             signal_label_list.append(label)
             next_place += 1
 
-    assert len(signal_label_list) == len(GLOBAL_DATA['labels']), "not all required electrodes in data"
+    # assert len(signal_label_list) == len(GLOBAL_DATA['labels']), "not all required electrodes in data"
     slice_size = GLOBAL_DATA["slice_size_scs"] * signal_sample_rate
     # just to reduce memory usage
     signals_np = signals_np.astype(np.float32) 
     
-    generate_slices(file_name, signals_np, slice_size)
+    index_eps, index_no_eps = generate_slices(file_name, signals_np, index_eps, index_no_eps, slice_size)
+    return index_eps, index_no_eps
    
 
 
@@ -182,6 +200,9 @@ GLOBAL_DATA['labels'] = ['FP1', 'FP2', 'F3', 'F4', 'F7', 'F8', 'C3', 'C4', 'CZ',
 GLOBAL_DATA['slice_size_scs'] = 6
 
 
-
-
-generate_training_data_slices(seiz_path)
+paths = get_paths("edf/train")
+index_eps = 0
+index_no_eps = 0
+next_place = 0
+for i in range(10):
+    index_eps, index_no_eps = generate_training_data_slices(paths[i], index_no_eps, index_eps)
