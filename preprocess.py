@@ -10,9 +10,8 @@ from pyedflib import highlevel, EdfReader
 import re
 from scipy.signal import resample
 import os
+from constants import GLOBAL_DATA
 
-
-GLOBAL_DATA = {}
 
 slices_path = "sliced_data/train"
 
@@ -82,10 +81,10 @@ def search_walk(info):
     else:
         return False
 
-def get_paths(directory):
+def get_paths(directory, extension=".edf"):
     info = {}
     info["path"] = directory
-    info["extension"] = ".edf"
+    info["extension"] = extension
     paths = search_walk(info)
     return paths
 
@@ -129,7 +128,7 @@ def generate_slices(file_name, signals_np, index_eps, index_no_eps, slice_size =
 
     record_len = signals_np.shape[1]
     
-
+    print(f"slice size = {slice_size}")
     for start_idx in range(0, record_len - slice_size, step):
         end_idx = start_idx + slice_size
         current_slice = signals_np[:, start_idx:end_idx]
@@ -164,7 +163,8 @@ def generate_training_data_slices(file, index_no_eps=0, index_eps=0):
     # assert all(elem in y_labels for elem in GLOBAL_DATA['labels']), "not all required labels in EEG signal"
     if not all(elem in y_labels for elem in GLOBAL_DATA['labels']):
         return index_eps, index_no_eps
-    target_freq = 100
+    
+    target_freq = GLOBAL_DATA["resampled_freq"]
     
     resampled_len = int(record_len * target_freq / signal_sample_rate)
 
@@ -185,20 +185,16 @@ def generate_training_data_slices(file, index_no_eps=0, index_eps=0):
         print("not enough labels")
         return index_eps, index_no_eps
     
-    slice_size = GLOBAL_DATA["slice_size_scs"] * signal_sample_rate
+    slice_size = GLOBAL_DATA["slice_size_scs"] * target_freq
     # just to reduce memory usage
     signals_np = signals_np.astype(np.float32) 
     
-    index_eps, index_no_eps = generate_slices(file_name, signals_np, index_eps, index_no_eps, slice_size)
+    index_eps, index_no_eps = generate_slices(file_name, signals_np, index_eps, index_no_eps, slice_size, target_freq)
     return index_eps, index_no_eps
    
 
 
-# Example usage
-GLOBAL_DATA = {}
-GLOBAL_DATA['sample_rate'] = 250
-GLOBAL_DATA['labels'] = ['FP1', 'FP2', 'F3', 'F4', 'F7', 'F8', 'C3', 'C4', 'CZ', 'T3', 'T4', 'P3', 'P4', 'O1', 'O2', 'T5', 'T6', 'PZ', 'FZ']
-GLOBAL_DATA['slice_size_scs'] = 6
+
 
 def generate_entire_train_set():
     
@@ -208,4 +204,5 @@ def generate_entire_train_set():
     for p in paths:
         index_eps, index_no_eps = generate_training_data_slices(p, index_no_eps, index_eps)
         
-generate_entire_train_set()
+if __name__ == "__main__":        
+    generate_entire_train_set()
