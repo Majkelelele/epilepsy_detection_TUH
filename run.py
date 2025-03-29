@@ -12,7 +12,7 @@ from models import EEG_dataset, Conv1d_lstm, save_model, load_model_to_finetune,
 import time
 
 
-def train(model, optimizer, train_loader, criterion=nn.BCELoss(), epochs=5, path_to_save_model=""):
+def train(model, optimizer, train_loader, criterion=nn.BCELoss(), epochs=5, save=True):
     for epoch in range(epochs):
         model.train()
         running_correct = 0
@@ -31,8 +31,8 @@ def train(model, optimizer, train_loader, criterion=nn.BCELoss(), epochs=5, path
         end_time = time.time()
         print(f"{epoch} epoch time = {end_time - start_time} seconds") 
         print(f"{epoch} epoch train accuracy = {running_correct/len(train_loader.dataset)}")
-    if path_to_save_model:
-        save_model(model, optimizer, path_to_save_model)
+    if save:
+        save_model(model, optimizer, model.get_path_to_model())
     
 def test(model, test_loader, criterion=nn.BCELoss()):
     model.eval()
@@ -70,6 +70,7 @@ def test_model_from_memory(model, optim, path_to_read_model):
 
 
 if __name__ == "__main__":  
+    torch.manual_seed(SEED)
     batch_size = GLOBAL_DATA["batch_size"]
 
     
@@ -81,11 +82,11 @@ if __name__ == "__main__":
     optimizer = AdamW(model.parameters())
     criterion = nn.BCELoss()
     epochs = GLOBAL_DATA["epochs"]
-    path_to_save_model = "saved_models/conv1d_lstm_15epochs"
+
     
-    train(model,optimizer,train_loader, epochs=epochs, path_to_save_model=path_to_save_model)
+    train(model,optimizer,train_loader, epochs=epochs)
     test(model,test_loader)
-    test_model_from_memory(model, optimizer, path_to_save_model)
+    test_model_from_memory(model, optimizer, model.get_path_to_model())
 
     
     

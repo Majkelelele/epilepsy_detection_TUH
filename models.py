@@ -30,7 +30,7 @@ def load_model_to_finetune(model:nn.Module, optimizer:torch.optim, model_path:st
 class Conv1d_lstm(nn.Module):
     def __init__(self, input_channels:int, num_classes=1) -> None:
         super(Conv1d_lstm, self).__init__()
-
+        self.path_to_save = "saved_models/conv1d_lstm_15epochs"
         self.conv1 = nn.Conv1d(input_channels, 32, kernel_size=3, padding=1)
         self.bn1 = nn.BatchNorm1d(32)
         self.conv2 = nn.Conv1d(32, 64, kernel_size=3, padding=1)
@@ -39,7 +39,10 @@ class Conv1d_lstm(nn.Module):
         self.lstm = nn.LSTM(input_size=64, hidden_size=128, num_layers=2, batch_first=True, bidirectional=True)
 
         self.fc = nn.Linear(128 * 2, num_classes) 
-        
+    
+    def get_path_to_model(self):
+        return self.path_to_save
+    
     def forward(self, x: torch.tensor) -> torch.tensor:
         batch_size, channels, seq_len = x.shape  
         x = F.relu(self.bn1(self.conv1(x)))
@@ -58,6 +61,8 @@ class Conv1d_lstm(nn.Module):
 class Conv2d_lstm(nn.Module):
     def __init__(self, num_classes=1):
         super(Conv2d_lstm, self).__init__()
+        self.path_to_save = "saved_models/conv2d_lstm_15epochs"
+
         self.seq1 = nn.Sequential(
             nn.Conv2d(1, 64, kernel_size=(1,51), stride=(1,4)),
             nn.BatchNorm2d(64),
@@ -76,8 +81,10 @@ class Conv2d_lstm(nn.Module):
         # )
         self.lstm = nn.LSTM(128, 256, num_layers=2, batch_first=True)
         self.fc = nn.Linear(256,num_classes)
-        
-        
+    
+    def get_path_to_model(self):
+        return self.path_to_save
+     
     def forward(self, x):
         # making one fake channel
         x = x.unsqueeze(dim = 1)
