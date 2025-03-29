@@ -55,7 +55,41 @@ class Conv1d_lstm(nn.Module):
         x = self.fc(x)
         return torch.sigmoid(x) 
     
-# class 
+class Conv2d_lstm(nn.Module):
+    def __init__(self, num_classes=1):
+        super(Conv2d_lstm, self).__init__()
+        self.seq1 = nn.Sequential(
+            nn.Conv2d(1, 64, kernel_size=(1,51), stride=(1,4)),
+            nn.BatchNorm2d(64),
+            nn.ReLU(),
+            nn.MaxPool2d(kernel_size=(1,4), stride=(1,4))
+        )
+        self.seq2 = nn.Sequential(
+            nn.Conv2d(64, 128, kernel_size=(1,21), stride=(1,2)),
+            nn.BatchNorm2d(128),
+            nn.ReLU(),
+        )
+        # self.seq3 = nn.Sequential(
+        #     nn.Conv2d(128, 256, kernel_size=(1,9), stride=(1,2)),
+        #     nn.BatchNorm2d(256),
+        #     nn.ReLU(),
+        # )
+        self.lstm = nn.LSTM(128, 256, num_layers=2, batch_first=True)
+        self.fc = nn.Linear(256,num_classes)
+        
+        
+    def forward(self, x):
+        # making one fake channel
+        x = x.unsqueeze(dim = 1)
+        x = self.seq1(x)
+        x = self.seq2(x)
+        x = x.view(x.shape[0],x.shape[1],-1)
+        x = x.permute(0, 2, 1)
+        x, _ = self.lstm(x)
+        x = x[:, -1, :]
+        x = self.fc(x)
+        return F.sigmoid(x)
+    
 
         
 

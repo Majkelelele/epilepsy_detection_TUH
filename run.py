@@ -8,11 +8,11 @@ from torch import nn
 from torch.optim import AdamW
 import torch.nn.functional as F
 from constants import EPS, NO_EPS, SEED
-from models import EEG_dataset, Conv1d_lstm, save_model, load_model_to_finetune
+from models import EEG_dataset, Conv1d_lstm, save_model, load_model_to_finetune, Conv2d_lstm
 import time
 
 
-def train(model, optimizer, train_loader, path_to_save_model, criterion=nn.BCELoss(), epochs=5, save=True):
+def train(model, optimizer, train_loader, criterion=nn.BCELoss(), epochs=5, path_to_save_model=""):
     for epoch in range(epochs):
         model.train()
         running_correct = 0
@@ -31,7 +31,7 @@ def train(model, optimizer, train_loader, path_to_save_model, criterion=nn.BCELo
         end_time = time.time()
         print(f"{epoch} epoch time = {end_time - start_time} seconds") 
         print(f"{epoch} epoch train accuracy = {running_correct/len(train_loader.dataset)}")
-    if save:
+    if path_to_save_model:
         save_model(model, optimizer, path_to_save_model)
     
 def test(model, test_loader, criterion=nn.BCELoss()):
@@ -62,9 +62,9 @@ def prepare_loaders():
     test_loader = DataLoader(data_test, batch_size=batch_size, shuffle=True, drop_last=True)
     return train_loader, test_loader
 
-def test_model_from_memory(model, optim):
+def test_model_from_memory(model, optim, path_to_read_model):
     _, test_loader = prepare_loaders()
-    path_to_read_model = "saved_models/conv1d_lstm_20epochs"
+    
     model_1, _ = load_model_to_finetune(model, optim, path_to_read_model)
     test(model_1, test_loader)
 
@@ -73,18 +73,19 @@ if __name__ == "__main__":
     batch_size = GLOBAL_DATA["batch_size"]
 
     
-    model = Conv1d_lstm(len(GLOBAL_DATA['labels']))
+    # model = Conv1d_lstm(len(GLOBAL_DATA['labels']))
+    model = Conv2d_lstm()
 
     train_loader, test_loader = prepare_loaders()
 
     optimizer = AdamW(model.parameters())
     criterion = nn.BCELoss()
     epochs = GLOBAL_DATA["epochs"]
-    path_to_save_model = "saved_models/conv1d_lstm_20epochs"
+    path_to_save_model = "saved_models/conv1d_lstm_15epochs"
     
-    train(model,optimizer,train_loader, path_to_save_model, epochs=epochs)
+    train(model,optimizer,train_loader, epochs=epochs, path_to_save_model=path_to_save_model)
     test(model,test_loader)
-    test_model_from_memory(model, optimizer)
+    test_model_from_memory(model, optimizer, path_to_save_model)
 
     
     
