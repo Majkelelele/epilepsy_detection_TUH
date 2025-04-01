@@ -5,6 +5,8 @@ import torch
 from torch import nn
 from constants import EPS, NO_EPS, SEED
 import torch.nn.functional as F
+import torchvision.models as models
+from torchvision import transforms
 from dataset import EEG_dataset
 
 
@@ -30,7 +32,7 @@ def load_model_to_finetune(model:nn.Module, optimizer:torch.optim, model_path:st
 class Conv1d_lstm(nn.Module):
     def __init__(self, input_channels:int, num_classes=1) -> None:
         super(Conv1d_lstm, self).__init__()
-        self.path_to_save = "saved_models/conv1d_lstm_15epochs"
+        self.name = "conv1d_lstm"
         self.conv1 = nn.Conv1d(input_channels, 32, kernel_size=3, padding=1)
         self.bn1 = nn.BatchNorm1d(32)
         self.conv2 = nn.Conv1d(32, 64, kernel_size=3, padding=1)
@@ -40,8 +42,8 @@ class Conv1d_lstm(nn.Module):
 
         self.fc = nn.Linear(128 * 2, num_classes) 
     
-    def get_path_to_model(self):
-        return self.path_to_save
+    def get_model_name(self):
+        return self.name
     
     def forward(self, x: torch.tensor) -> torch.tensor:
         batch_size, channels, seq_len = x.shape  
@@ -61,7 +63,7 @@ class Conv1d_lstm(nn.Module):
 class Conv2d_lstm(nn.Module):
     def __init__(self, num_classes=1):
         super(Conv2d_lstm, self).__init__()
-        self.path_to_save = "saved_models/conv2d_lstm_15epochs"
+        self.name = "conv2d_lstm"
 
         self.seq1 = nn.Sequential(
             nn.Conv2d(1, 64, kernel_size=(1,51), stride=(1,4)),
@@ -82,8 +84,8 @@ class Conv2d_lstm(nn.Module):
         self.lstm = nn.LSTM(128, 256, num_layers=2, batch_first=True)
         self.fc = nn.Linear(256,num_classes)
     
-    def get_path_to_model(self):
-        return self.path_to_save
+    def get_model_name(self):
+        return self.name
      
     def forward(self, x):
         # making one fake channel
@@ -99,9 +101,54 @@ class Conv2d_lstm(nn.Module):
     
 
         
+class ResNet_lstm(nn.Module):
+    def __init__(self, input_channels = 1, num_classes=1, stride=1):
+        super().__init__()   
+        self.name = "resnet_lstm"
+        self.seq1 = nn.Sequential(
+            nn.Conv2d(input_channels, 32, kernel_size=(1,9), stride=(1,stride), padding=(0,4), bias=False),
+            nn.BatchNorm2d(32),
+            nn.ReLU(),
+            nn.Conv2d(32, 64, kernel_size=(1,9), stride=(1,stride), padding=(0,4), bias=False),
+            nn.BatchNorm2d(64),
+            nn.ReLU(),
+        )
+        self.res1 = nn.Sequential(
+            nn.Conv2d(input_channels, 64, kernel_size=(1,9), stride=(1,stride), padding=(0,4), bias=False),
+            nn.BatchNorm2d(64),
+            nn.ReLU(),
+        )
+        self.seq2 = nn.Sequential(
+            nn.Conv2d(64, 128, kernel_size=(1,9), stride=(1,stride), padding=(0,4), bias=False),
+            nn.BatchNorm2d(128),
+            nn.ReLU(),
+            nn.Conv2d(128, 128, kernel_size=(1,9), stride=(1,stride), padding=(0,4), bias=False),
+            nn.BatchNorm2d(128),
+            nn.ReLU(),
+        )
+        self.res2 = nn.Sequential(
+            nn.Conv2d(64, 128, kernel_size=(1,9), stride=(1,stride), padding=(0,4), bias=False),
+            nn.BatchNorm2d(128),
+            nn.ReLU(),
+        )
+  
+        self.lstm = nn.LSTM(128, 256, num_layers=2, batch_first=True)
+        self.fc = nn.Linear(256,num_classes)
+      
 
+    def get_model_name(self):
+        return self.name
+    def forward(self, x):
+        x = x.unsqueeze(dim = 1)
+        x = self.seq1(x) + self.res1(x)
+        x = self.seq2(x) + self.res2(x)
 
-
+        x = x.view(x.shape[0],x.shape[1],-1)
+        x = x.permute(0, 2, 1)
+        x, _ = self.lstm(x)
+        x = x[:, -1, :]
+        x = self.fc(x)
+        return F.sigmoid(x)
         
 
 
