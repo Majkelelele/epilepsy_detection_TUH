@@ -13,7 +13,7 @@ import time
 import torch.multiprocessing as mp
 
 
-torch.set_num_threads(GLOBAL_DATA["cores_count"] - 1)
+# torch.set_num_threads(GLOBAL_DATA["cores_count"] - 1)
 
 def make_path(model, epochs):
     return GLOBAL_DATA["saving_models_path"] + model.get_model_name() + "_" + str(epochs) + "epochs"
@@ -97,8 +97,8 @@ if __name__ == "__main__":
         print("Using CPU")
     
     # model = Conv1d_lstm(len(GLOBAL_DATA['labels']))
-    # model = Conv2d_lstm()
-    model = ResNet_lstm()
+    model = Conv2d_lstm()
+    # model = ResNet_lstm()
 
     train_loader, test_loader = prepare_loaders()
 

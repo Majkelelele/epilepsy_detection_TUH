@@ -15,55 +15,6 @@ from constants import GLOBAL_DATA
 
 slices_path = "sliced_data/train"
 
-def read_and_plot(file_name):
-
-    f = pyedflib.EdfReader(file_name)
-    n = f.signals_in_file
-    print(f"signals in file = {n}")
-    signal_labels = np.array(f.getSignalLabels())
-    l = max(f.getNSamples())
-    print(f"len = {l}")
-    real_labels = signal_labels[f.getNSamples() == l]
-    print(f"real labels = {real_labels}")
-    n = sum(f.getNSamples() == l)
-    print(n)
-    sigbufs = np.zeros((n, l))
-    for i in np.arange(n):
-            sig = f.readSignal(i)
-            if len(sig) == l:
-                sigbufs[i, :] = sig
-            
-    start = 1
-    end = 10
-    seizure = 6
-    no_seiz = 7
-    no_seiz2 = 8
-            
-    fig, axes = plt.subplots(3, 1, figsize=(12, 8), sharex=True)
-
-    # Plot seizure signal
-    axes[0].plot(sigbufs[seizure, start * sampling_rate : end * sampling_rate], color="blue")
-    axes[0].set_title(f"Seizure Signal ({real_labels[seizure]})")
-    axes[0].set_ylabel("Amplitude")
-    axes[0].grid(True)
-
-    # Plot no_seiz signal
-    axes[1].plot(sigbufs[no_seiz, start * sampling_rate : end * sampling_rate], color="red")
-    axes[1].set_title(f"No Seizure Signal ({real_labels[no_seiz]})")
-    axes[1].set_xlabel("Time (samples)")
-    axes[1].set_ylabel("Amplitude")
-    axes[1].grid(True)
-
-    axes[2].plot(sigbufs[no_seiz2, start * sampling_rate : end * sampling_rate], color="yellow")
-    axes[2].set_title(f"No Seizure Signal ({real_labels[no_seiz2]})")
-    axes[2].set_xlabel("Time (samples)")
-    axes[2].set_ylabel("Amplitude")
-    axes[2].grid(True)
-
-    # Show the plots
-    plt.tight_layout()
-    plt.show()
-
 def search_walk(info):
     searched_list = []
     root_path = info.get('path')
@@ -149,19 +100,26 @@ def generate_slices(file_name, signals_np, index_eps, index_no_eps, slice_size =
     print(f"created {index_eps + index_no_eps} slices")
     return index_eps, index_no_eps
 
-def generate_training_data_slices(file, index_no_eps=0, index_eps=0):
+def prepare_file(file, index_no_eps=0, index_eps=0):
     sample_rate = GLOBAL_DATA['sample_rate']
     electrodes_num = len(GLOBAL_DATA['labels'])
     file_name = file.split(".")[:-1][0]
     signals, signal_headers, header = highlevel.read_edf(file)
 
-    y_labels = list(set([i['label'].replace("EEG ", "").replace("-REF", "") for i in signal_headers]))
+    y_labels = list(set([i['label'].replace("EEG ", "").replace("-REF", "").replace("-LE","") for i in signal_headers]))
     record_len = max([len(i) for i in signals])
 
     signal_sample_rate = int(max([i['sample_frequency'] for i in signal_headers]))
     assert sample_rate <= signal_sample_rate, "sample_rate is greater than signal_sample_rate"
     # assert all(elem in y_labels for elem in GLOBAL_DATA['labels']), "not all required labels in EEG signal"
     if not all(elem in y_labels for elem in GLOBAL_DATA['labels']):
+        return None, signals, signal_headers, signal_sample_rate, electrodes_num, file_name
+    
+    return record_len, signals, signal_headers, signal_sample_rate, electrodes_num, file_name, y_labels
+
+def generate_training_data_slices_downsampling(file, index_no_eps=0, index_eps=0):
+    record_len, signals, signal_headers, signal_sample_rate, electrodes_num, file_name, y_labels = prepare_file(file, index_no_eps, index_eps)
+    if record_len is None:
         return index_eps, index_no_eps
     
     target_freq = GLOBAL_DATA["resampled_freq"]
@@ -172,7 +130,7 @@ def generate_training_data_slices(file, index_no_eps=0, index_eps=0):
     signal_label_list = []
     next_place = 0
     for idx, signal in enumerate(signals):
-        label = signal_headers[idx]['label'].replace("EEG ", "").replace("-REF", "")
+        label = y_labels[idx]
 
         if label in GLOBAL_DATA['labels']:
             assert len(signal) == record_len, "different recording lengths in electrodes"
@@ -193,16 +151,31 @@ def generate_training_data_slices(file, index_no_eps=0, index_eps=0):
     return index_eps, index_no_eps
    
 
+def generate_training_data_slices_fft(file, index_no_eps=0, index_eps=0):
+    # record_len, signals, signal_headers, signal_sample_rate, electrodes_num, file_name, y_labels = prepare_file(file, index_no_eps, index_eps)
+    pass
 
-
-
-def generate_entire_train_set():
     
+
+
+def generate_entire_train_set_downsampling():
     paths = get_paths("edf/train")
     index_eps = 0
     index_no_eps = 0
     for p in paths:
-        index_eps, index_no_eps = generate_training_data_slices(p, index_no_eps, index_eps)
+        index_eps, index_no_eps = generate_training_data_slices_downsampling(p, index_no_eps, index_eps)
         
+def generate_entire_train_set_fft():
+    paths = get_paths("edf/train")
+    index_eps = 0
+    index_no_eps = 0
+    # for p in paths:
+    #     index_eps, index_no_eps = generate_training_data_slices_downsampling(p, index_no_eps, index_eps)
+    print(paths[0])
+    generate_training_data_slices_fft(paths[0], index_no_eps, index_eps)
+    
+    
+
 if __name__ == "__main__":        
-    generate_entire_train_set()
+    # generate_entire_train_set_downsampling()
+    generate_entire_train_set_fft()
