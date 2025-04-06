@@ -71,7 +71,7 @@ class Conv2d_lstm(nn.Module):
             nn.ReLU(),
             nn.MaxPool2d(kernel_size=(1,4), stride=(1,4))
         )
-        self.seq2 = nn.Sequential(
+        self.seq2 = nn.Sequential( 
             nn.Conv2d(64, 128, kernel_size=(1,21), stride=(1,2)),
             nn.BatchNorm2d(128),
             nn.ReLU(),
@@ -98,57 +98,91 @@ class Conv2d_lstm(nn.Module):
         x = x[:, -1, :]
         x = self.fc(x)
         return F.sigmoid(x)
-    
 
-        
+class SEBlock(nn.Module):
+    def __init__(self, channels, reduction=16):
+        super().__init__()
+        self.pool = nn.AdaptiveAvgPool1d(1)
+        self.fc = nn.Sequential(
+            nn.Conv1d(channels, channels // reduction, 1),
+            nn.ReLU(),
+            nn.Conv1d(channels // reduction, channels, 1),
+            nn.Sigmoid()
+        )
+
+    def forward(self, x):
+        scale = self.pool(x) 
+        scale = self.fc(scale)  
+        return x * scale
+
 class ResNet_lstm(nn.Module):
-    def __init__(self, input_channels = 1, num_classes=1, stride=1):
-        super().__init__()   
+    def __init__(self, input_channels=1, num_classes=1, stride=1):
+        super().__init__()
         self.name = "resnet_lstm"
+
         self.seq1 = nn.Sequential(
-            nn.Conv2d(input_channels, 32, kernel_size=(1,9), stride=(1,stride), padding=(0,4), bias=False),
+            nn.Conv2d(input_channels, 32, kernel_size=(1, 9), stride=(1, stride), padding=(0, 4), bias=False),
             nn.BatchNorm2d(32),
             nn.ReLU(),
-            nn.Conv2d(32, 64, kernel_size=(1,9), stride=(1,stride), padding=(0,4), bias=False),
-            nn.BatchNorm2d(64),
-            nn.ReLU(),
+            nn.Conv2d(32, 32, kernel_size=(1, 9), stride=(1, stride), padding=(0, 4), bias=False),
+            nn.BatchNorm2d(32)
         )
         self.res1 = nn.Sequential(
-            nn.Conv2d(input_channels, 64, kernel_size=(1,9), stride=(1,stride), padding=(0,4), bias=False),
+            nn.Conv2d(input_channels, 32, kernel_size=(1, 9), stride=(1, stride), padding=(0, 4), bias=False),
+            nn.BatchNorm2d(32)
+        )
+
+        self.seq2 = nn.Sequential(
+            nn.ReLU(),
+            nn.Conv2d(32, 64, kernel_size=(1, 9), stride=(1, stride), padding=(0, 4), bias=False),
             nn.BatchNorm2d(64),
             nn.ReLU(),
-        )
-        self.seq2 = nn.Sequential(
-            nn.Conv2d(64, 128, kernel_size=(1,9), stride=(1,stride), padding=(0,4), bias=False),
-            nn.BatchNorm2d(128),
-            nn.ReLU(),
-            nn.Conv2d(128, 128, kernel_size=(1,9), stride=(1,stride), padding=(0,4), bias=False),
-            nn.BatchNorm2d(128),
-            nn.ReLU(),
+            nn.Conv2d(64, 64, kernel_size=(1, 9), stride=(1, stride), padding=(0, 4), bias=False),
+            nn.BatchNorm2d(64)
         )
         self.res2 = nn.Sequential(
-            nn.Conv2d(64, 128, kernel_size=(1,9), stride=(1,stride), padding=(0,4), bias=False),
-            nn.BatchNorm2d(128),
-            nn.ReLU(),
+            nn.Conv2d(32, 64, kernel_size=(1, 9), stride=(1, stride), padding=(0, 4), bias=False),
+            nn.BatchNorm2d(64)
         )
-  
-        self.lstm = nn.LSTM(128, 256, num_layers=2, batch_first=True)
-        self.fc = nn.Linear(256,num_classes)
-      
+
+        self.se_block = SEBlock(64)
+
+        self.lstm = nn.LSTM(input_size=64, hidden_size=128, num_layers=2, 
+                            batch_first=True, bidirectional=True, dropout=0.3)
+
+        self.dropout = nn.Dropout(0.5)
+        self.fc = nn.Linear(128 * 2, num_classes)  # *2 for bidirectional
+        self.out = nn.Sigmoid()
 
     def get_model_name(self):
         return self.name
-    def forward(self, x):
-        x = x.unsqueeze(dim = 1)
-        x = self.seq1(x) + self.res1(x)
-        x = self.seq2(x) + self.res2(x)
 
-        x = x.view(x.shape[0],x.shape[1],-1)
+    def forward(self, x):
+        # x: (B, Channels, Time) => Add a dummy spatial dim
+        x = x.unsqueeze(1)  # (B, 1, Channels, Time)
+
+        x = self.seq1(x) + self.res1(x)
+        x = F.relu(x)
+
+        x = self.seq2(x) + self.res2(x)
+        x = F.relu(x)
+
+        # Collapse spatial dim, keep time axis
+        x = F.adaptive_avg_pool2d(x, (1, x.shape[-1]))  # (B, C, 1, T)
+        x = x.squeeze(2)  # (B, C, T)
+
+        x = self.se_block(x)
+
+        # Prepare for LSTM: (B, T, C)
         x = x.permute(0, 2, 1)
+
         x, _ = self.lstm(x)
-        x = x[:, -1, :]
+        x = x[:, -1, :]  # Last time step
+
+        x = self.dropout(x)
         x = self.fc(x)
-        return F.sigmoid(x)
+        return self.out(x)
+
         
 
 

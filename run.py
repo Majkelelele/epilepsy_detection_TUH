@@ -26,7 +26,7 @@ def train(model, optimizer, train_loader, criterion=nn.BCELoss(), epochs=5, save
         loading_start = time.time()
         for i, (data, labels) in enumerate(tqdm(train_loader,desc="progres")):
             loading_end = time.time()
-            print(f"loading time = {loading_end-loading_start} seconds")
+            # print(f"loading time = {loading_end-loading_start} seconds")
             training_start = time.time()
             model.zero_grad()
             out = model(data).squeeze(dim=-1)
@@ -36,7 +36,7 @@ def train(model, optimizer, train_loader, criterion=nn.BCELoss(), epochs=5, save
             predictions = (out > 0.5).float()
             predicted_corr = (predictions == labels).sum().item()
             training_end = time.time()
-            print(f"training time = {training_end - training_start} seconds")
+            # print(f"training time = {training_end - training_start} seconds")
             
             running_correct += predicted_corr
             loading_start = time.time()
@@ -64,7 +64,7 @@ def test(model, test_loader, criterion=nn.BCELoss()):
     
 def prepare_loaders():
     torch.manual_seed(SEED)
-    paths_eps = get_paths(GLOBAL_DATA["epilepsy_path"],".npz")
+    paths_eps = get_paths(GLOBAL_DATA["epilepsy_path"],".npz")[:10000]
     paths_no_eps = get_paths(GLOBAL_DATA["no_epilepsy_path"],".npz")[:len(paths_eps)]
     print(f"epilepsy files count = {len(paths_eps)}")
     print(f" no epilepsy files count = {len(paths_no_eps)}")
@@ -97,8 +97,8 @@ if __name__ == "__main__":
         print("Using CPU")
     
     # model = Conv1d_lstm(len(GLOBAL_DATA['labels']))
-    model = Conv2d_lstm()
-    # model = ResNet_lstm()
+    # model = Conv2d_lstm()
+    model = ResNet_lstm()
 
     train_loader, test_loader = prepare_loaders()
 
