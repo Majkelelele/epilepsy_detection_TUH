@@ -6,3 +6,4 @@ _*
 TEST
 sliced_data*
 saved_models/*
+plot_stft.py

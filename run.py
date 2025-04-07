@@ -11,25 +11,36 @@ from constants import EPS, NO_EPS, SEED
 from models import EEG_dataset, Conv1d_lstm, save_model, load_model_to_finetune, Conv2d_lstm, ResNet_lstm, EEG_Conv2d_LSTM, ensemble_models
 import time
 import torch.multiprocessing as mp
-
+from typing import Optional, Tuple
+from torch.utils.data import DataLoader
+from torch.optim import Optimizer
 
 # torch.set_num_threads(GLOBAL_DATA["cores_count"] - 1)
 
-def make_path(model, epochs, transform=None):
+
+def make_path(model: nn.Module, epochs: int, transform: Optional[str] = None) -> str:
     transform_part = f"{transform}_" if transform else ""
     return f"{GLOBAL_DATA['saving_models_path']}{model.get_model_name()}_{transform_part}{epochs}epochs"
 
-def train(model, optimizer, train_loader, criterion=nn.BCELoss(), epochs=5, save=True, test_loader=None):
-    print(f"training { make_path(model,epochs,model.transform)}")
+def train(
+    model: nn.Module,
+    optimizer: Optimizer,
+    train_loader: DataLoader,
+    criterion: nn.Module = nn.BCELoss(),
+    epochs: int = 5,
+    save: bool = True,
+    test_loader: Optional[DataLoader] = None
+) -> None:
+    print(f"training { make_path(model, epochs, model.transform)}")
     for epoch in range(epochs):
         model.train()
         running_correct = 0
         start_time = time.time()
         loading_start = time.time()
-        for i, (data, labels) in enumerate(tqdm(train_loader,desc="train progres")):
+        for i, (data, labels) in enumerate(tqdm(train_loader, desc="train progres")):
             loading_end = time.time()
-            # print(f"loading time = {loading_end-loading_start} seconds")
             training_start = time.time()
+            # print(f"loading time = {loading_end-loading_start} seconds")
             model.zero_grad()
             out = model(data).squeeze(dim=-1)
             loss = criterion(out, labels)
@@ -38,52 +49,56 @@ def train(model, optimizer, train_loader, criterion=nn.BCELoss(), epochs=5, save
             predictions = (out > 0.5).float()
             predicted_corr = (predictions == labels).sum().item()
             training_end = time.time()
-            # print(f"training time = {training_end - training_start} seconds")
-            
             running_correct += predicted_corr
             loading_start = time.time()
+            # print(f"training time = {training_end - training_start} seconds")
         if test_loader:
-            test(model,test_loader)
+            test(model, test_loader)
         end_time = time.time()
         print(f"{epoch} epoch time = {end_time - start_time} seconds") 
-        print(f"{epoch} epoch train accuracy = {running_correct/len(train_loader.dataset)}")
+        print(f"{epoch} epoch train accuracy = {running_correct / len(train_loader.dataset)}")
     if save:
-        save_model(model, optimizer, make_path(model,epochs,train_loader.dataset.dataset.transform))
-    
-def test(model, test_loader, criterion=nn.BCELoss()):
+        save_model(model, optimizer, make_path(model, epochs, train_loader.dataset.dataset.transform))
+
+def test(
+    model: nn.Module,
+    test_loader: DataLoader,
+    criterion: nn.Module = nn.BCELoss()
+) -> None:
     with torch.no_grad():
         model.eval()
         running_correct = 0
         running_loss = 0.0
-        for i, (data, labels) in enumerate(tqdm(test_loader,desc="test progres")):
+        for i, (data, labels) in enumerate(tqdm(test_loader, desc="test progres")):
             out = model(data).squeeze(dim=-1)
             loss = criterion(out, labels)
             running_loss += loss.item()
             predictions = (out > 0.5).float()
             predicted_corr = (predictions == labels).sum().item()
             running_correct += predicted_corr
-        print(f"test accuracy = {running_correct/len(test_loader.dataset)}")
+        print(f"test accuracy = {running_correct / len(test_loader.dataset)}")
         print(f"loss = {running_loss}")
-    
-def prepare_loaders():
+
+def prepare_loaders() -> Tuple[DataLoader, DataLoader]:
     torch.manual_seed(SEED)
-    paths_eps = get_paths(GLOBAL_DATA["epilepsy_path"],".npz")
-    paths_no_eps = get_paths(GLOBAL_DATA["no_epilepsy_path"],".npz")[:len(paths_eps)]
+    paths_eps = get_paths(GLOBAL_DATA["epilepsy_path"], ".npz")
+    paths_no_eps = get_paths(GLOBAL_DATA["no_epilepsy_path"], ".npz")[:len(paths_eps)]
     print(f"epilepsy files count = {len(paths_eps)}")
     print(f" no epilepsy files count = {len(paths_no_eps)}")
     dataset = EEG_dataset(paths_no_eps, paths_eps)
     data_train, data_test = random_split(dataset, [0.8, 0.2])
     batch_size = GLOBAL_DATA["batch_size"]
-
-     
-    
     train_loader = DataLoader(data_train, batch_size=batch_size, shuffle=True, drop_last=True, num_workers=GLOBAL_DATA["cores_count"] - 1)
     test_loader = DataLoader(data_test, batch_size=batch_size, shuffle=True, drop_last=True, num_workers=GLOBAL_DATA["cores_count"] - 1)
     return train_loader, test_loader
 
-def test_model_from_memory(model, optim, epochs, test_loader):
-    path_to_read_model = make_path(model,epochs,model.transform)
-    
+def test_model_from_memory(
+    model: nn.Module,
+    optim: Optimizer,
+    epochs: int,
+    test_loader: DataLoader
+) -> None:
+    path_to_read_model = make_path(model, epochs, model.transform)
     model_1, _ = load_model_to_finetune(model, optim, path_to_read_model)
     print(f"testing model {path_to_read_model}")
     test(model_1, test_loader)
