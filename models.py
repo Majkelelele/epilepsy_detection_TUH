@@ -205,18 +205,19 @@ class ensemble_models(nn.Module):
         super().__init__()
         self.list_of_models = nn.ModuleList(list_of_models)
         self.name: str = "ensemble_models"
+        self.transform = None
 
     def get_model_name(self) -> str:
         return self.name
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        predictions: List[torch.Tensor] = []
-        for model in self.list_of_models:
-            out = model(x).squeeze(dim=-1)
-            pred = (out > 0.5).float()
-            predictions.append(pred)
+        outputs = []
 
-        stacked_preds = torch.stack(predictions)
-        votes = stacked_preds.sum(dim=0)
-        majority = (votes > (len(self.list_of_models) / 2)).float()
-        return majority.unsqueeze(dim=-1)
+        for model in self.list_of_models:
+            out = model(x) 
+            outputs.append(out)
+
+        stacked = torch.stack(outputs)  
+        avg_output = stacked.mean(dim=0) 
+
+        return torch.sigmoid(avg_output)  

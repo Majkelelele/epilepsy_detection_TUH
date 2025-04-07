@@ -29,7 +29,6 @@ def train(
     criterion: nn.Module = nn.BCELoss(),
     epochs: int = 5,
     save: bool = True,
-    test_loader: Optional[DataLoader] = None
 ) -> None:
     print(f"training { make_path(model, epochs, model.transform)}")
     for epoch in range(epochs):
@@ -52,8 +51,7 @@ def train(
             running_correct += predicted_corr
             loading_start = time.time()
             # print(f"training time = {training_end - training_start} seconds")
-        if test_loader:
-            test(model, test_loader)
+
         end_time = time.time()
         print(f"{epoch} epoch time = {end_time - start_time} seconds") 
         print(f"{epoch} epoch train accuracy = {running_correct / len(train_loader.dataset)}")
@@ -132,21 +130,21 @@ if __name__ == "__main__":
 
     
     
-    # model = Conv1d_lstm(len(GLOBAL_DATA['labels']))
-    # optimizer = AdamW(model.parameters())
+    model = Conv1d_lstm(len(GLOBAL_DATA['labels']))
+    optimizer = AdamW(model.parameters())
 
-    # model_1, _ = load_model_to_finetune(model, optimizer, "saved_models/conv1d_lstm_15epochs")
+    model_1, _ = load_model_to_finetune(model, optimizer, "saved_models/conv1d_lstm_15epochs")
     
-    # model = Conv2d_lstm()
-    # optimizer = AdamW(model.parameters())
+    model = Conv2d_lstm()
+    optimizer = AdamW(model.parameters())
     
-    # model_2, _ = load_model_to_finetune(model, optimizer, "saved_models/conv2d_lstm_15epochs")
+    model_2, _ = load_model_to_finetune(model, optimizer, "saved_models/conv2d_lstm_15epochs")
     
-    # list_of_models = [model_1, model_2]
+    list_of_models = [model_1, model_2]
     
-    # model = ensemble_models(list_of_models)
+    model = ensemble_models(list_of_models)
     
-    train(model,optimizer,train_loader, epochs=epochs, test_loader=test_loader)
+    train(model,optimizer,train_loader, epochs=epochs)
     test(model,test_loader)
     test_model_from_memory(model, optimizer, epochs, test_loader)
 
