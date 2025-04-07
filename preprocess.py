@@ -11,7 +11,9 @@ import re
 from scipy.signal import resample
 import os
 from constants import GLOBAL_DATA
-
+import torch
+from scipy.signal import stft, windows
+import torchaudio
 
 slices_path = "sliced_data/train"
 
@@ -151,13 +153,8 @@ def generate_training_data_slices_downsampling(file, index_no_eps=0, index_eps=0
     return index_eps, index_no_eps
    
 
-def generate_training_data_slices_fft(file, index_no_eps=0, index_eps=0):
-    # record_len, signals, signal_headers, signal_sample_rate, electrodes_num, file_name, y_labels = prepare_file(file, index_no_eps, index_eps)
-    pass
 
     
-
-
 def generate_entire_train_set_downsampling():
     paths = get_paths("edf/train")
     index_eps = 0
@@ -165,17 +162,36 @@ def generate_entire_train_set_downsampling():
     for p in paths:
         index_eps, index_no_eps = generate_training_data_slices_downsampling(p, index_no_eps, index_eps)
         
-def generate_entire_train_set_fft():
-    paths = get_paths("edf/train")
-    index_eps = 0
-    index_no_eps = 0
-    # for p in paths:
-    #     index_eps, index_no_eps = generate_training_data_slices_downsampling(p, index_no_eps, index_eps)
-    print(paths[0])
-    generate_training_data_slices_fft(paths[0], index_no_eps, index_eps)
+# def generate_entire_train_set_fft():
+#     paths = get_paths("edf/train")
+#     index_eps = 0
+#     index_no_eps = 0
+#     # for p in paths:
+#     #     index_eps, index_no_eps = generate_training_data_slices_downsampling(p, index_no_eps, index_eps)
+#     print(paths[0])
+#     generate_training_data_slices_fft(paths[0], index_no_eps, index_eps)
     
     
+def make_spectogram(data):
+    N = GLOBAL_DATA["slice_size_scs"]
+    fs = GLOBAL_DATA["resampled_freq"]
+    window_len = int(GLOBAL_DATA["window_len_seconds"] * fs)
+    w = windows.hann(window_len)
+    shift = int(0.5 * window_len)
+
+    res = []
+
+    for i in range(len(GLOBAL_DATA["labels"])):
+        # Create an STFT spectrogram for each of the 19 EEG channels (electrodes)
+        _, _, Zxx = stft(data[i], fs=fs, window=w, nperseg=window_len, noverlap=window_len - shift, return_onesided=True)
+        spectrogram = torch.from_numpy(np.abs(Zxx))
+        res.append(spectrogram)
+    
+    # Stack the spectrograms for all samples
+    tensor_feature = torch.stack(res)  # [batch, 19, freq_bins, time_bins]
+    return tensor_feature
+
+
 
 if __name__ == "__main__":        
-    # generate_entire_train_set_downsampling()
-    generate_entire_train_set_fft()
+    generate_entire_train_set_downsampling()
