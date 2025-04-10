@@ -1,0 +1,7 @@
+saved_models/conv2d_lstm_15epochs: 0.8552810496759496
+saved_models/conv1d_lstm_15epochs: 0.8470341003408268
+enemble model: 0.8797746657954686
+resnet_lstm_stft_15epochs: 0.986
+resnet_lstm_stft_15epochs: 0.961
+conv2d_lstm_stft_5epochs: 0.9849
+ensemble: 0.986

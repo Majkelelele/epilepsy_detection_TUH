@@ -177,7 +177,7 @@ def make_spectogram(data: np.ndarray) -> torch.Tensor:
             noverlap=window_len - shift,
             return_onesided=True
         )
-        spectrogram = torch.from_numpy(np.abs(Zxx))
+        spectrogram = torch.log(torch.from_numpy(np.abs(Zxx) +  1e-10))
         res.append(spectrogram)
 
     tensor_feature = torch.stack(res)

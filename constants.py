@@ -12,6 +12,7 @@ GLOBAL_DATA['no_epilepsy_path'] = "sliced_data/train/no_eps"
 GLOBAL_DATA["saving_models_path"] = "saved_models/"
 GLOBAL_DATA["cores_count"] = os.cpu_count()
 GLOBAL_DATA["window_len_seconds"] = 1
+GLOBAL_DATA["workers"] = os.cpu_count() - 1
 EPS = 1
 NO_EPS = 0
 SEED = 42

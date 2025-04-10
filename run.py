@@ -56,7 +56,7 @@ def train(
         print(f"{epoch} epoch time = {end_time - start_time} seconds") 
         print(f"{epoch} epoch train accuracy = {running_correct / len(train_loader.dataset)}")
     if save:
-        save_model(model, optimizer, make_path(model, epochs, train_loader.dataset.dataset.transform))
+        save_model(model, optimizer, make_path(model, epochs, model.transform))
 
 def test(
     model: nn.Module,
@@ -86,8 +86,8 @@ def prepare_loaders() -> Tuple[DataLoader, DataLoader]:
     dataset = EEG_dataset(paths_no_eps, paths_eps)
     data_train, data_test = random_split(dataset, [0.8, 0.2])
     batch_size = GLOBAL_DATA["batch_size"]
-    train_loader = DataLoader(data_train, batch_size=batch_size, shuffle=True, drop_last=True, num_workers=GLOBAL_DATA["cores_count"] - 1)
-    test_loader = DataLoader(data_test, batch_size=batch_size, shuffle=True, drop_last=True, num_workers=GLOBAL_DATA["cores_count"] - 1)
+    train_loader = DataLoader(data_train, batch_size=batch_size, shuffle=True, drop_last=True, num_workers=GLOBAL_DATA["workers"])
+    test_loader = DataLoader(data_test, batch_size=batch_size, shuffle=True, drop_last=True, num_workers=GLOBAL_DATA["workers"])
     return train_loader, test_loader
 
 def test_model_from_memory(
@@ -97,8 +97,9 @@ def test_model_from_memory(
     test_loader: DataLoader
 ) -> None:
     path_to_read_model = make_path(model, epochs, model.transform)
-    model_1, _ = load_model_to_finetune(model, optim, path_to_read_model)
     print(f"testing model {path_to_read_model}")
+
+    model_1, _ = load_model_to_finetune(model, optim, path_to_read_model)
     test(model_1, test_loader)
 
 
@@ -114,8 +115,8 @@ if __name__ == "__main__":
         print("Using CPU")
     
     # model = Conv1d_lstm(len(GLOBAL_DATA['labels']))
-    # model = Conv2d_lstm()
-    # model = ResNet_lstm()
+    # model = Conv2d_lstm(transform="stft")
+    # model = ResNet_lstm(transform="stft")
     
     input_freq_bins = 51 
     input_time_bins = 100  
@@ -127,25 +128,53 @@ if __name__ == "__main__":
     optimizer = AdamW(model.parameters())
     criterion = nn.BCELoss()
     epochs = GLOBAL_DATA["epochs"]
+    
+
 
     
     
-    model = Conv1d_lstm(len(GLOBAL_DATA['labels']))
-    optimizer = AdamW(model.parameters())
+    # model = Conv1d_lstm(len(GLOBAL_DATA['labels']))
+    # optimizer = AdamW(model.parameters())
 
-    model_1, _ = load_model_to_finetune(model, optimizer, "saved_models/conv1d_lstm_15epochs")
+    # model_1, _ = load_model_to_finetune(model, optimizer, "saved_models/conv1d_lstm_15epochs")
     
-    model = Conv2d_lstm()
+    # model = Conv2d_lstm()
+    # optimizer = AdamW(model.parameters())
+    
+    # model_2, _ = load_model_to_finetune(model, optimizer, "saved_models/conv2d_lstm_15epochs")
+    
+    # model = Conv2d_lstm()
+    # optimizer = AdamW(model.parameters())
+    
+    # model_5, _ = load_model_to_finetune(model, optimizer, "saved_models/conv2d_lstm_30epochs")
+    
+    
+    
+    
+    model = ResNet_lstm(transform="stft")
     optimizer = AdamW(model.parameters())
     
-    model_2, _ = load_model_to_finetune(model, optimizer, "saved_models/conv2d_lstm_15epochs")
+    model_3, _ = load_model_to_finetune(model, optimizer, "saved_models/resnet_lstm_stft_15epochs")
+
+    model = ResNet_lstm(transform="stft")
+    optimizer = AdamW(model.parameters())
     
-    list_of_models = [model_1, model_2]
+    model_4, _ = load_model_to_finetune(model, optimizer, "saved_models/resnet_lstm_stft_5epochs")
     
+    
+    model = EEG_Conv2d_LSTM(input_freq_bins=input_freq_bins, input_time_bins=input_time_bins, num_classes=1, transform="stft")
+    optimizer = AdamW(model.parameters())
+    
+    model_6, _ = load_model_to_finetune(model, optimizer, "saved_models/conv2d_lstm_stft_5epochs")
+    
+
+    list_of_models = [model_6, model_4, model_3]
+    
+    # # list_of_models = [model_2]
     model = ensemble_models(list_of_models)
     
-    train(model,optimizer,train_loader, epochs=epochs)
+    # train(model,optimizer,train_loader, epochs=epochs)
     test(model,test_loader)
-    test_model_from_memory(model, optimizer, epochs, test_loader)
+    # test_model_from_memory(model, optimizer, epochs, test_loader)
 
     

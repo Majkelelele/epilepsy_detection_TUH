@@ -28,6 +28,7 @@ class Conv1d_lstm(nn.Module):
     def __init__(self, input_channels: int, num_classes: int = 1) -> None:
         super().__init__()
         self.name: str = "conv1d_lstm"
+        self.transform = ""
         self.conv1 = nn.Conv1d(input_channels, 32, kernel_size=3, padding=1)
         self.bn1 = nn.BatchNorm1d(32)
         self.conv2 = nn.Conv1d(32, 64, kernel_size=3, padding=1)
@@ -53,9 +54,11 @@ class Conv2d_lstm(nn.Module):
         super().__init__()
         self.name: str = "conv2d_lstm"
         self.transform: str = transform
+        input_channels = len(GLOBAL_DATA["labels"]) if transform == "stft" else 1
 
+        print(f"input channels = {input_channels}")
         self.seq1 = nn.Sequential(
-            nn.Conv2d(1, 64, kernel_size=(1, 51), stride=(1, 4)),
+            nn.Conv2d(input_channels, 64, kernel_size=(1, 51), stride=(1, 4)),
             nn.BatchNorm2d(64),
             nn.ReLU(),
             nn.MaxPool2d(kernel_size=(1, 4), stride=(1, 4))
@@ -73,8 +76,12 @@ class Conv2d_lstm(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         if self.transform == "stft":
-            x = make_spectogram(x)
-        x = x.unsqueeze(dim=1)
+            res = []
+            for i in range(GLOBAL_DATA["batch_size"]):
+                res.append(make_spectogram(x[i, :, :]))
+            x = torch.stack(res)
+        else:
+            x = x.unsqueeze(1)
         x = self.seq1(x)
         x = self.seq2(x)
         x = x.view(x.shape[0], x.shape[1], -1)
@@ -103,10 +110,11 @@ class SEBlock(nn.Module):
 
 
 class ResNet_lstm(nn.Module):
-    def __init__(self, input_channels: int = 1, num_classes: int = 1, stride: int = 1) -> None:
+    def __init__(self, input_channels: int = 1, num_classes: int = 1, stride: int = 1, transform="") -> None:
         super().__init__()
         self.name: str = "resnet_lstm"
-
+        self.transform = transform
+        input_channels = len(GLOBAL_DATA["labels"]) if transform == "stft" else 1
         self.seq1 = nn.Sequential(
             nn.Conv2d(input_channels, 32, kernel_size=(1, 9), stride=(1, stride), padding=(0, 4), bias=False),
             nn.BatchNorm2d(32),
@@ -141,7 +149,13 @@ class ResNet_lstm(nn.Module):
         return self.name
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        x = x.unsqueeze(1)
+        if self.transform == "stft":
+            res = []
+            for i in range(GLOBAL_DATA["batch_size"]):
+                res.append(make_spectogram(x[i, :, :]))
+            x = torch.stack(res)
+        else:
+            x = x.unsqueeze(1)
         x = self.seq1(x) + self.res1(x)
         x = F.relu(x)
         x = self.seq2(x) + self.res2(x)
@@ -178,7 +192,7 @@ class EEG_Conv2d_LSTM(nn.Module):
         return self.name
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        res: List[torch.Tensor] = []
+        res = []
         if self.transform == "stft":
             for i in range(GLOBAL_DATA["batch_size"]):
                 res.append(make_spectogram(x[i, :, :]))
@@ -211,13 +225,13 @@ class ensemble_models(nn.Module):
         return self.name
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        outputs = []
-
+        predictions: List[torch.Tensor] = []
         for model in self.list_of_models:
-            out = model(x) 
-            outputs.append(out)
+            out = model(x).squeeze(dim=-1)
+            pred = (out > 0.5).float()
+            predictions.append(pred)
 
-        stacked = torch.stack(outputs)  
-        avg_output = stacked.mean(dim=0) 
-
-        return torch.sigmoid(avg_output)  
+        stacked_preds = torch.stack(predictions)
+        votes = stacked_preds.sum(dim=0)
+        majority = (votes > (len(self.list_of_models) / 2)).float()
+        return majority.unsqueeze(dim=-1)
