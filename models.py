@@ -171,49 +171,6 @@ class ResNet_lstm(nn.Module):
         return self.out(x)
 
 
-class EEG_Conv2d_LSTM(nn.Module):
-    def __init__(self, input_freq_bins: int, input_time_bins: int, num_classes: int = 1, transform: str = "") -> None:
-        super().__init__()
-        self.name: str = "conv2d_lstm"
-        self.transform: str = transform
-
-        self.conv1 = nn.Conv2d(19, 64, kernel_size=(3, 3), padding=(1, 1))
-        self.bn1 = nn.BatchNorm2d(64)
-        self.relu1 = nn.ReLU()
-
-        self.conv2 = nn.Conv2d(64, 128, kernel_size=(3, 3), padding=(1, 1))
-        self.bn2 = nn.BatchNorm2d(128)
-        self.relu2 = nn.ReLU()
-
-        self.lstm = nn.LSTM(input_size=663, hidden_size=256, num_layers=2, batch_first=True)
-        self.fc = nn.Linear(256, num_classes)
-
-    def get_model_name(self) -> str:
-        return self.name
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        res = []
-        if self.transform == "stft":
-            for i in range(GLOBAL_DATA["batch_size"]):
-                res.append(make_spectogram(x[i, :, :]))
-            x = torch.stack(res)
-
-        x = self.conv1(x)
-        x = self.bn1(x)
-        x = self.relu1(x)
-
-        x = self.conv2(x)
-        x = self.bn2(x)
-        x = self.relu2(x)
-
-        x = x.view(x.size(0), x.size(2) * x.size(3), -1)
-        x = x.permute(0, 2, 1)
-        x, _ = self.lstm(x)
-        x = x[:, -1, :]
-        x = self.fc(x)
-        return torch.sigmoid(x)
-
-
 class ensemble_models(nn.Module):
     def __init__(self, list_of_models: List[nn.Module]) -> None:
         super().__init__()
